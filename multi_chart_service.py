@@ -23,6 +23,43 @@ class ChartConfig:
     secondary_color: str = "#DD8452"
     secondary_label: str = ""
 
+    title_color: str = "#222222"
+    title_fontsize: Optional[int] = None
+    title_fontweight: str = "bold"
+    title_loc: str = "center"
+    title_pad: Optional[int] = None
+
+    xlabel_color: str = "#333333"
+    xlabel_fontsize: Optional[int] = None
+    xlabel_rotation: float = 0
+    xlabel_pad: Optional[float] = None
+
+    ylabel_color: str = "#333333"
+    ylabel_fontsize: Optional[int] = None
+    ylabel_rotation: float = 90
+    ylabel_pad: Optional[float] = None
+
+    secondary_ylabel: str = ""
+    secondary_ylabel_color: str = ""
+    secondary_ylabel_fontsize: Optional[int] = None
+
+    xtick_rotation: float = 0
+    ytick_rotation: float = 0
+    xtick_labels: Optional[List[str]] = None
+    ytick_labels: Optional[List[str]] = None
+    tick_color: str = "#555555"
+
+    xlim: Optional[Tuple[float, float]] = None
+    ylim: Optional[Tuple[float, float]] = None
+    secondary_ylim: Optional[Tuple[float, float]] = None
+    xscale: str = "linear"
+    yscale: str = "linear"
+    secondary_yscale: str = "linear"
+
+    grid_linestyle: str = "--"
+    grid_alpha: float = 0.4
+    grid_color: str = "#BBBBBB"
+
 
 class MultiChartService:
     def __init__(self, figsize: Optional[Tuple[int, int]] = None, dpi: int = 150,
@@ -191,12 +228,18 @@ class MultiChartService:
                 "top": top, "bottom": bottom}
 
     def _render_chart(self, ax: plt.Axes, cfg: ChartConfig, font_scale: float = 1.0):
-        title_fs = int(12 * font_scale)
-        label_fs = int(10 * font_scale)
-        tick_fs = int(9 * font_scale)
+        base_title_fs = int(12 * font_scale)
+        base_label_fs = int(10 * font_scale)
+        base_tick_fs = int(9 * font_scale)
         legend_fs = int(9 * font_scale)
         marker_size = max(3, int(5 * font_scale))
         line_width = max(1.2, 2 * font_scale)
+
+        title_fs = cfg.title_fontsize if cfg.title_fontsize else base_title_fs
+        xlabel_fs = cfg.xlabel_fontsize if cfg.xlabel_fontsize else base_label_fs
+        ylabel_fs = cfg.ylabel_fontsize if cfg.ylabel_fontsize else base_label_fs
+        sy_ylabel_fs = cfg.secondary_ylabel_fontsize if cfg.secondary_ylabel_fontsize else base_label_fs
+        tick_fs = base_tick_fs
 
         if cfg.chart_type == "line":
             ax.plot(cfg.x_data, cfg.y_data, color=cfg.color, marker=cfg.marker,
@@ -222,16 +265,69 @@ class MultiChartService:
         else:
             raise ValueError(f"Unsupported chart_type: {cfg.chart_type}")
 
-        title_pad = max(6, int(10 * font_scale))
-        ax.set_title(cfg.title, fontsize=title_fs, fontweight="bold", pad=title_pad)
+        title_pad_val = cfg.title_pad if cfg.title_pad is not None else max(6, int(10 * font_scale))
+        ax.set_title(cfg.title, fontsize=title_fs, fontweight=cfg.title_fontweight,
+                     color=cfg.title_color, loc=cfg.title_loc, pad=title_pad_val)
+
         if cfg.x_label:
-            ax.set_xlabel(cfg.x_label, fontsize=label_fs)
+            xl_pad = cfg.xlabel_pad if cfg.xlabel_pad is not None else 5 * font_scale
+            ax.set_xlabel(cfg.x_label, fontsize=xlabel_fs, color=cfg.xlabel_color,
+                          rotation=cfg.xlabel_rotation, labelpad=xl_pad)
         if cfg.y_label:
-            ax.set_ylabel(cfg.y_label, fontsize=label_fs)
-        ax.grid(cfg.grid, linestyle="--", alpha=0.4)
+            yl_pad = cfg.ylabel_pad if cfg.ylabel_pad is not None else 5 * font_scale
+            ax.set_ylabel(cfg.y_label, fontsize=ylabel_fs, color=cfg.ylabel_color,
+                          rotation=cfg.ylabel_rotation, labelpad=yl_pad)
+
+        if cfg.grid:
+            ax.grid(True, linestyle=cfg.grid_linestyle, alpha=cfg.grid_alpha,
+                    color=cfg.grid_color)
+        else:
+            ax.grid(False)
+
         if cfg.label or cfg.secondary_label:
             ax.legend(fontsize=legend_fs, loc="best", framealpha=0.9)
-        ax.tick_params(labelsize=tick_fs)
+
+        ax.tick_params(axis="x", labelsize=tick_fs, rotation=cfg.xtick_rotation,
+                       colors=cfg.tick_color)
+        ax.tick_params(axis="y", labelsize=tick_fs, rotation=cfg.ytick_rotation,
+                       colors=cfg.tick_color)
+
+        if cfg.xtick_labels is not None:
+            locs = ax.get_xticks()
+            if len(cfg.xtick_labels) <= len(locs):
+                pad_start = (len(locs) - len(cfg.xtick_labels)) // 2
+                ax.set_xticks(locs[pad_start:pad_start + len(cfg.xtick_labels)])
+                ax.set_xticklabels(cfg.xtick_labels, fontsize=tick_fs,
+                                   rotation=cfg.xtick_rotation, color=cfg.tick_color)
+            else:
+                ax.set_xticks(cfg.x_data)
+                ax.set_xticklabels(cfg.xtick_labels, fontsize=tick_fs,
+                                   rotation=cfg.xtick_rotation, color=cfg.tick_color)
+        if cfg.ytick_labels is not None:
+            ax.set_yticklabels(cfg.ytick_labels, fontsize=tick_fs,
+                               rotation=cfg.ytick_rotation, color=cfg.tick_color)
+
+        if cfg.xlim:
+            ax.set_xlim(cfg.xlim)
+        if cfg.ylim:
+            ax.set_ylim(cfg.ylim)
+        if cfg.xscale:
+            ax.set_xscale(cfg.xscale)
+        if cfg.yscale:
+            ax.set_yscale(cfg.yscale)
+
+        if cfg.secondary_ylabel:
+            sy_color = cfg.secondary_ylabel_color or cfg.secondary_color
+            ax2 = ax.twinx()
+            if cfg.secondary_y_data is not None:
+                pass
+            ax2.set_ylabel(cfg.secondary_ylabel, fontsize=sy_ylabel_fs,
+                           color=sy_color, labelpad=5 * font_scale)
+            ax2.tick_params(axis="y", labelsize=tick_fs, colors=sy_color)
+            if cfg.secondary_ylim:
+                ax2.set_ylim(cfg.secondary_ylim)
+            if cfg.secondary_yscale:
+                ax2.set_yscale(cfg.secondary_yscale)
 
     def render(self, output_path: str = "multi_chart.png") -> str:
         if not self._configs:
@@ -310,39 +406,175 @@ def build_demo_charts() -> List[ChartConfig]:
     profit = revenue - cost
     growth_rate = np.diff(revenue) / revenue[:-1] * 100
     growth_months = months[1:]
+    growth_month_labels = month_labels[1:]
 
     configs = [
         ChartConfig(
-            chart_type="line", title="Monthly Revenue vs Cost",
-            x_data=months, y_data=revenue, x_label="Month", y_label="Amount (K$)",
-            color="#4C72B0", label="Revenue", secondary_y_data=cost,
-            secondary_color="#DD8452", secondary_label="Cost"
+            chart_type="line",
+            title="Monthly Revenue vs Cost",
+            title_color="#1F4E79",
+            title_fontsize=14,
+            title_loc="left",
+            title_fontweight="heavy",
+            x_data=months,
+            y_data=revenue,
+            x_label="Month",
+            xlabel_color="#1F4E79",
+            xlabel_fontsize=11,
+            xlabel_rotation=0,
+            xlabel_pad=8,
+            y_label="Revenue (K$)",
+            ylabel_color="#4C72B0",
+            ylabel_fontsize=11,
+            ylabel_rotation=90,
+            xtick_labels=month_labels,
+            xtick_rotation=45,
+            tick_color="#1F4E79",
+            color="#4C72B0",
+            label="Revenue",
+            secondary_y_data=cost,
+            secondary_color="#DD8452",
+            secondary_label="Cost",
+            secondary_ylabel="Cost (K$)",
+            secondary_ylabel_color="#DD8452",
+            marker="o",
+            grid_linestyle=":",
+            grid_alpha=0.6,
+            grid_color="#CCCCCC",
+            ylim=(0, 300),
         ),
         ChartConfig(
-            chart_type="bar", title="Sales & Returns by Category",
-            x_data=categories, y_data=sales, x_label="Category", y_label="Units",
-            color="#55A868", label="Sales", secondary_y_data=returns,
-            secondary_color="#C44E52", secondary_label="Returns"
+            chart_type="bar",
+            title="Sales & Returns by Category",
+            title_color="#2E5E2E",
+            title_fontweight="heavy",
+            title_pad=15,
+            x_data=categories,
+            y_data=sales,
+            x_label="Product Category",
+            xlabel_color="#2E5E2E",
+            xlabel_fontsize=11,
+            xlabel_pad=10,
+            y_label="Total Units",
+            ylabel_color="#55A868",
+            ylabel_fontsize=11,
+            xtick_labels=cat_labels,
+            xtick_rotation=0,
+            tick_color="#2E5E2E",
+            color="#55A868",
+            alpha=0.85,
+            label="Sales",
+            secondary_y_data=returns,
+            secondary_color="#C44E52",
+            secondary_label="Returns",
+            bar_width=0.55,
+            grid=True,
+            grid_linestyle="-",
+            grid_alpha=0.25,
+            grid_color="#888888",
+            ylim=(0, 500),
         ),
         ChartConfig(
-            chart_type="scatter", title="Feature Correlation Analysis",
-            x_data=x_scatter, y_data=y_scatter, x_label="Feature X", y_label="Feature Y",
-            color="#8172B3", size=60
+            chart_type="scatter",
+            title="Feature Correlation Analysis",
+            title_color="#5A3D7A",
+            title_fontsize=13,
+            title_loc="right",
+            x_data=x_scatter,
+            y_data=y_scatter,
+            x_label="Feature X (Engine Size)",
+            xlabel_color="#5A3D7A",
+            xlabel_rotation=0,
+            xlabel_pad=8,
+            y_label="Feature Y (Efficiency)",
+            ylabel_color="#8172B3",
+            ylabel_pad=8,
+            color="#8172B3",
+            size=70,
+            alpha=0.75,
+            grid=True,
+            grid_linestyle="-.",
+            grid_alpha=0.5,
+            grid_color="#AA99CC",
+            xlim=(0, 110),
+            ylim=(-20, 320),
         ),
         ChartConfig(
-            chart_type="line", title="Monthly Profit Trend",
-            x_data=months, y_data=profit, x_label="Month", y_label="Profit (K$)",
-            color="#CCB974", marker="D"
+            chart_type="line",
+            title="Monthly Profit Trend",
+            title_color="#8A6D1F",
+            title_fontweight="heavy",
+            x_data=months,
+            y_data=profit,
+            x_label="Month",
+            xlabel_color="#8A6D1F",
+            xlabel_rotation=30,
+            xlabel_pad=8,
+            y_label="Profit (K$)",
+            ylabel_color="#CCB974",
+            ylabel_rotation=45,
+            ylabel_pad=15,
+            xtick_labels=month_labels,
+            xtick_rotation=30,
+            ytick_rotation=45,
+            tick_color="#8A6D1F",
+            color="#CCB974",
+            marker="D",
+            grid=True,
+            grid_linestyle="--",
+            grid_alpha=0.5,
+            grid_color="#D4C488",
+            ylim=(20, 110),
         ),
         ChartConfig(
-            chart_type="bar", title="Month-over-Month Growth Rate (%)",
-            x_data=growth_months, y_data=growth_rate, x_label="Month", y_label="Growth (%)",
-            color="#64B5CD"
+            chart_type="bar",
+            title="Month-over-Month Growth Rate (%)",
+            title_color="#1F5E66",
+            title_fontsize=13,
+            x_data=growth_months,
+            y_data=growth_rate,
+            x_label="Month",
+            xlabel_color="#1F5E66",
+            xlabel_rotation=45,
+            xlabel_pad=10,
+            y_label="Growth (%)",
+            ylabel_color="#64B5CD",
+            ylabel_rotation=90,
+            xtick_labels=growth_month_labels,
+            xtick_rotation=45,
+            tick_color="#1F5E66",
+            color="#64B5CD",
+            alpha=0.9,
+            bar_width=0.5,
+            grid=True,
+            grid_linestyle=":",
+            grid_alpha=0.55,
+            grid_color="#99D3E8",
+            ylim=(-2, 18),
         ),
         ChartConfig(
-            chart_type="scatter", title="Anomaly Detection",
-            x_data=x_scatter2, y_data=y_scatter2, x_label="Metric A", y_label="Metric B",
-            color="#C44E52", size=45
+            chart_type="scatter",
+            title="Anomaly Detection",
+            title_color="#7A2E2E",
+            title_fontweight="heavy",
+            x_data=x_scatter2,
+            y_data=y_scatter2,
+            x_label="Metric A (Latency ms)",
+            xlabel_color="#7A2E2E",
+            xlabel_rotation=0,
+            y_label="Metric B (Error Rate %)",
+            ylabel_color="#C44E52",
+            ylabel_rotation=90,
+            tick_color="#7A2E2E",
+            color="#C44E52",
+            size=55,
+            alpha=0.7,
+            grid=False,
+            grid_linestyle="--",
+            grid_alpha=0.3,
+            grid_color="#E0B0B0",
+            xlim=(10, 100),
+            ylim=(0, 160),
         ),
     ]
     return configs
